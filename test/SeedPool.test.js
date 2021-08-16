@@ -24,16 +24,16 @@ const factory = async () => {
     },
   });
 
-	const pool = await SeedPool.new(faucet.address, {
-		minDailyRate: toWei('1000'),
-		maxDailyRate: toWei('1000'),
-		minValue: toWei('50000'),
-		maxValue: toWei('1095000'),
-		requireOwnedNft: true,
-		minGrant: toWei('10000')
-	});
+  const pool = await SeedPool.new(faucet.address, {
+    minDailyRate: toWei('1000'),
+    maxDailyRate: toWei('1000'),
+    minValue: toWei('50000'),
+    maxValue: toWei('1095000'),
+    requireOwnedNft: true,
+    minGrant: toWei('10000')
+  });
 
-	// allow faucet and pool to spend token
+  // allow faucet and pool to spend token
   await token.approve(faucet.address, INFINITY);
 
   return { token, nft, faucet, lock, pool };
@@ -53,6 +53,6 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
       assert.isBelow(gasUsed, MAX_DEPLOYMENT_GAS);
       console.log('deployment', gasUsed);
     });
-	});
+  });
 
 });
