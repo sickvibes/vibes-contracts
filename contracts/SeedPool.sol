@@ -15,6 +15,7 @@ struct Allowance {
 
 struct PoolView {
   uint256 balance;
+  Constraints constraints;
   Allowance[] allowances;
 }
 
@@ -86,7 +87,8 @@ contract SeedPool is AccessControlEnumerable, Pausable {
 
     return PoolView({
       balance: faucet.token().balanceOf(address(this)),
-      allowances: allowances_
+      allowances: allowances_,
+      constraints: constraints
     });
   }
 
@@ -108,7 +110,7 @@ contract SeedPool is AccessControlEnumerable, Pausable {
 
     _seeders.add(msg.sender);
 
-    allowances[msg.sender] -= amount;
+    allowances[msg.sender] -= amount; // reverts on overflow
     faucet.seed(SeedInput({
       nft: nft,
       tokenId: tokenId,
@@ -123,7 +125,9 @@ contract SeedPool is AccessControlEnumerable, Pausable {
     require(allowances[msg.sender] >= amount, "insufficient allowance");
     require(amount >= constraints.minGrant, "grant amount too low");
 
-    allowances[msg.sender] -= amount;
+    _seeders.add(seeder);
+
+    allowances[msg.sender] -= amount; // reverts on overflow
     allowances[seeder] += amount;
 
     emit AllowanceGranted(msg.sender, seeder, amount);
@@ -143,7 +147,11 @@ contract SeedPool is AccessControlEnumerable, Pausable {
     for (uint256 i = 0; i < allowances_.length; i++) {
       address seeder = allowances_[i].seeder;
       uint256 amount = allowances_[i].amount;
+
+      _seeders.add(seeder);
+
       allowances[seeder] = amount;
+
       emit AllowanceSet(msg.sender, seeder, amount);
     }
   }
