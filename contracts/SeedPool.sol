@@ -25,7 +25,6 @@ struct Constraints {
   uint256 maxValue;
   bool requireOwnedNft;
   uint256 minGrant;
-  uint256 maxGrant;
 }
 
 // manage per-address seeding allowances that use pooled tokens to seed
@@ -118,7 +117,6 @@ contract SeedPool is AccessControlEnumerable, Pausable {
   function grant(address seeder, uint256 amount) external {
     require(allowances[msg.sender] >= amount, "insufficient allowance");
     require(amount >= constraints.minGrant, "grant amount too low");
-    require(amount <= constraints.maxGrant, "grant amount too high");
 
     allowances[msg.sender] -= amount;
     allowances[seeder] += amount;
