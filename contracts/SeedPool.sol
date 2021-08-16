@@ -76,7 +76,7 @@ contract SeedPool is AccessControlEnumerable, Pausable {
   // ---
 
   // get pool info
-  function getPoolView() external view returns (PoolView memory) {
+  function getInfo() external view returns (PoolView memory) {
     Allowance[] memory allowances_ = new Allowance[](_seeders.length());
 
     for (uint256 i = 0; i < _seeders.length(); i++) {
@@ -105,6 +105,8 @@ contract SeedPool is AccessControlEnumerable, Pausable {
     require(dailyRate <= constraints.maxDailyRate, "daily rate too high");
     require(amount >= constraints.minValue, "lifetime value too low");
     require(amount <= constraints.maxValue, "lifetime value too high");
+
+    _seeders.add(msg.sender);
 
     allowances[msg.sender] -= amount;
     faucet.seed(SeedInput({

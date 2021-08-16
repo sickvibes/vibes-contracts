@@ -81,9 +81,22 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
       assert.equal(view.isLegacyToken, false);
       assert.equal(view.balance, toWei('50000'));
     });
+    it.only('should decrease allowance following a seed', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('100000') }]);
+      await pool.seed(nft.address, tokenId, toWei('1000'), 60, { from: a2 });
+
+      const view = await pool.getInfo();
+      assert.equal(view.balance, toWei('40000'));
+      assert.equal(view.allowances[0].amount, toWei('40000'));
+    });
   });
 
-  describe.only('constraint checks', () => {
+  describe('constraint checks', () => {
     it('should revert if allowance too low', async () => {
       const { token, faucet, pool, nft } = await factory();
       const tokenId = '1';
