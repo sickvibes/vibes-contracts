@@ -66,6 +66,9 @@ contract SeedPool is AccessControlEnumerable, Pausable {
 
     // deployer = admin
     _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+    // approve faucet to move the pool's tokens
+    faucet.token().approve(address(faucet), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
   }
 
   // ---
@@ -100,8 +103,8 @@ contract SeedPool is AccessControlEnumerable, Pausable {
     require(!constraints.requireOwnedNft || nft.ownerOf(tokenId) == msg.sender, "not token owner");
     require(dailyRate >= constraints.minDailyRate, "dailyRate too low");
     require(dailyRate <= constraints.maxDailyRate, "dailyRate too high");
-    require(amount >= constraints.minValue, "value too low");
-    require(amount <= constraints.maxValue, "value too high");
+    require(amount >= constraints.minValue, "lifetime value too low");
+    require(amount <= constraints.maxValue, "lifetime value too high");
 
     allowances[msg.sender] -= amount;
     faucet.seed(SeedInput({

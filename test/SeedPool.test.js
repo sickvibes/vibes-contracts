@@ -33,7 +33,10 @@ const factory = async () => {
     minGrant: toWei('10000')
   });
 
+  await faucet.grantRole(await faucet.SEEDER_ROLE(), pool.address);
+
   // allow faucet and pool to spend token
+  await token.approve(faucet.address, INFINITY);
   await token.approve(faucet.address, INFINITY);
 
   return { token, nft, faucet, lock, pool };
@@ -52,6 +55,29 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
       let { gasUsed } = await web3.eth.getTransactionReceipt(faucet.transactionHash);
       assert.isBelow(gasUsed, MAX_DEPLOYMENT_GAS);
       console.log('deployment', gasUsed);
+    });
+  });
+
+  describe.only('basic seeding', () => {
+    it('should seed for msg sender', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([ { seeder: a2, amount: toWei('50000') } ]);
+      await pool.seed(nft.address, tokenId, toWei('1000'), 50, { from: a2 });
+
+      const view = await faucet.getToken(nft.address, tokenId);
+      assert.equal(view.nft, nft.address);
+      assert.equal(view.tokenId, tokenId);
+      assert.equal(view.isValidToken, true);
+      assert.equal(view.isSeeded, true);
+      assert.equal(view.seeder, a2);
+      assert.equal(view.operator, pool.address);
+      assert.equal(view.dailyRate, toWei('1000'));
+      assert.equal(view.isLegacyToken, false);
+      assert.equal(view.balance, toWei('50000'));
     });
   });
 
