@@ -1,3 +1,5 @@
+const truffleAssert = require('truffle-assertions');
+
 const MockERC20 = artifacts.require('MockERC20');
 const MockERC721 = artifacts.require('MockERC721');
 const MockERC721NoMetadata = artifacts.require('MockERC721NoMetadata');
@@ -26,7 +28,7 @@ const factory = async () => {
 
   const pool = await SeedPool.new(faucet.address, {
     minDailyRate: toWei('1000'),
-    maxDailyRate: toWei('1000'),
+    maxDailyRate: toWei('2000'),
     minValue: toWei('50000'),
     maxValue: toWei('1095000'),
     requireOwnedNft: true,
@@ -58,14 +60,14 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
     });
   });
 
-  describe.only('basic seeding', () => {
+  describe('basic seeding', () => {
     it('should seed for msg sender', async () => {
       const { token, faucet, pool, nft } = await factory();
       const tokenId = '1';
       await token.mint(toWei('100000'));
       await nft.mint(tokenId, { from: a2 });
       await token.transfer(pool.address, toWei('100000'));
-      await pool.setAllowances([ { seeder: a2, amount: toWei('50000') } ]);
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
       await pool.seed(nft.address, tokenId, toWei('1000'), 50, { from: a2 });
 
       const view = await faucet.getToken(nft.address, tokenId);
@@ -80,5 +82,93 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
       assert.equal(view.balance, toWei('50000'));
     });
   });
+
+  describe.only('constraint checks', () => {
+    it('should revert if allowance too low', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      await pool.seed(nft.address, tokenId, toWei('1000'), 50, { from: a2 });
+      const task = pool.seed(
+        nft.address, tokenId, toWei('1000'), 55, // <-- 55 days is past allowance
+        { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'insufficient allowance');
+    });
+    it('should revert if pool balance too low', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      // never filled pool
+      const task = pool.seed(
+        nft.address, tokenId, toWei('1000'), 50,
+        { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'insufficient pool balance');
+    });
+    it('should revert if not token owner', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId); // minted by a1
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      const task = pool.seed(
+        nft.address, tokenId, toWei('1000'), 50,
+        { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'not token owner');
+    });
+    it('should revert if daily rate too low', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      const task = pool.seed(
+        nft.address, tokenId, toWei('500'), 100,
+        { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'daily rate too low');
+    });
+    it('should revert if daily rate too high', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      const task = pool.seed(
+        nft.address, tokenId, toWei('5000'), 10,
+        { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'daily rate too high');
+    });
+    it('should revert if lifetime value too low', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      const task = pool.seed(
+        nft.address, tokenId, toWei('1000'), 1,
+        { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'lifetime value too low');
+    });
+    it('should revert if lifetime value too high', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('1000000000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('1000000000'));
+      await pool.setAllowances([{ seeder: a2, amount: INFINITY }]);
+      const task = pool.seed(
+        nft.address, tokenId, toWei('1000'), 2000,
+        { from: a2 });
+        await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'lifetime value too high');
+    });
+  })
 
 });
