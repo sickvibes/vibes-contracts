@@ -11,6 +11,17 @@ const { BN, toWei, fromWei } = web3.utils;
 const ZERO = '0x0000000000000000000000000000000000000000';
 const INFINITY = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
 
+const defaultConstraints = () => {
+  return {
+    minDailyRate: toWei('1000'),
+    maxDailyRate: toWei('2000'),
+    minValue: toWei('50000'),
+    maxValue: toWei('1095000'),
+    requireOwnedNft: true,
+    minGrant: toWei('10000')
+  };
+}
+
 const factory = async () => {
   const token = await MockERC20.new();
   const nft = await MockERC721.new();
@@ -26,14 +37,7 @@ const factory = async () => {
     },
   });
 
-  const pool = await SeedPool.new(faucet.address, {
-    minDailyRate: toWei('1000'),
-    maxDailyRate: toWei('2000'),
-    minValue: toWei('50000'),
-    maxValue: toWei('1095000'),
-    requireOwnedNft: true,
-    minGrant: toWei('10000')
-  });
+  const pool = await SeedPool.new(faucet.address, defaultConstraints());
 
   await faucet.grantRole(await faucet.SEEDER_ROLE(), pool.address);
 
@@ -81,7 +85,7 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
       assert.equal(view.isLegacyToken, false);
       assert.equal(view.balance, toWei('50000'));
     });
-    it.only('should decrease allowance following a seed', async () => {
+    it('should decrease allowance following a seed', async () => {
       const { token, faucet, pool, nft } = await factory();
       const tokenId = '1';
       await token.mint(toWei('100000'));
@@ -180,8 +184,87 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
       const task = pool.seed(
         nft.address, tokenId, toWei('1000'), 2000,
         { from: a2 });
-        await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'lifetime value too high');
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'lifetime value too high');
     });
-  })
+  });
+
+  describe('pausing', () => {
+    it('should unpause', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      await pool.pause();
+      const task = pool.seed(nft.address, tokenId, toWei('1000'), 50, { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'paused');
+      await pool.unpause();
+      await pool.seed(nft.address, tokenId, toWei('1000'), 50, { from: a2 }); // no revert
+    });
+    it('should revert if attempting to seed while paused', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      await pool.pause();
+      const task = pool.seed(nft.address, tokenId, toWei('1000'), 50, { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'paused');
+    });
+    it('should revert if attempting to grant while paused', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      await pool.pause();
+      const task = pool.grant(a3, toWei('10000'));
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'paused');
+    });
+    it('should revert if attempting to set constraints while paused', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      await pool.pause();
+      const task = pool.setConstraints(defaultConstraints());
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'paused');
+    });
+    it('should revert if attempting to set allowances while paused', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      await pool.pause();
+      const task = pool.setAllowances([]);
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'paused');
+    });
+  });
+
+  describe('admin', () => {
+    it('should revert if calling setAllowances without admin', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const task = pool.setAllowances([], { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'requires DEFAULT_ADMIN');
+    });
+    it('should revert if calling setConstraints without admin', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const task = pool.setConstraints(defaultConstraints(), { from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'requires DEFAULT_ADMIN');
+    });
+    it('should revert if calling shutdown without admin', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const task = pool.shutdown({ from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'requires DEFAULT_ADMIN');
+    });
+    it('should revert if calling pause without admin', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const task = pool.pause({ from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'requires DEFAULT_ADMIN');
+    });
+    it('should revert if calling unpause without admin', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      await pool.pause();
+      const task = pool.unpause({ from: a2 });
+      await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'requires DEFAULT_ADMIN');
+    });
+  });
 
 });

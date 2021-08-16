@@ -95,7 +95,7 @@ contract SeedPool is AccessControlEnumerable, Pausable {
   // ---
 
   // seed as msg.sender, asserting all checks pass
-  function seed(IERC721 nft, uint256 tokenId, uint256 dailyRate, uint256 totalDays) external {
+  function seed(IERC721 nft, uint256 tokenId, uint256 dailyRate, uint256 totalDays) external whenNotPaused {
     uint256 amount = totalDays * dailyRate;
 
     require(allowances[msg.sender] >= amount, "insufficient allowance");
@@ -119,7 +119,7 @@ contract SeedPool is AccessControlEnumerable, Pausable {
   }
 
   // transfer allowance from msg.sender to another address
-  function grant(address seeder, uint256 amount) external {
+  function grant(address seeder, uint256 amount) external whenNotPaused {
     require(allowances[msg.sender] >= amount, "insufficient allowance");
     require(amount >= constraints.minGrant, "grant amount too low");
 
