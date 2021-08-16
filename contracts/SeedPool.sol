@@ -101,8 +101,8 @@ contract SeedPool is AccessControlEnumerable, Pausable {
     require(allowances[msg.sender] >= amount, "insufficient allowance");
     require(faucet.token().balanceOf(address(this)) >= amount, "insufficient pool balance");
     require(!constraints.requireOwnedNft || nft.ownerOf(tokenId) == msg.sender, "not token owner");
-    require(dailyRate >= constraints.minDailyRate, "dailyRate too low");
-    require(dailyRate <= constraints.maxDailyRate, "dailyRate too high");
+    require(dailyRate >= constraints.minDailyRate, "daily rate too low");
+    require(dailyRate <= constraints.maxDailyRate, "daily rate too high");
     require(amount >= constraints.minValue, "lifetime value too low");
     require(amount <= constraints.maxValue, "lifetime value too high");
 
