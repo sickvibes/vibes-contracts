@@ -100,6 +100,27 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
     });
   });
 
+  describe('grants', () => {
+    it.only('should allow basic infusion allowance grants', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId, { from: a2 });
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      await pool.grant(a3, toWei('20000'), { from: a2 });
+      await pool.grant(a4, toWei('15000'), { from: a3 });
+      const view = await pool.getInfo();
+      assert.equal(view.allowances.length, 3);
+      assert.equal(view.allowances[0].seeder, a2);
+      assert.equal(view.allowances[0].amount, toWei('30000'));
+      assert.equal(view.allowances[1].seeder, a3);
+      assert.equal(view.allowances[1].amount, toWei('5000'));
+      assert.equal(view.allowances[2].seeder, a4);
+      assert.equal(view.allowances[2].amount, toWei('15000'));
+    });
+  });
+
   describe('constraint checks', () => {
     it('should revert if allowance too low', async () => {
       const { token, faucet, pool, nft } = await factory();
@@ -264,6 +285,27 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
       await pool.pause();
       const task = pool.unpause({ from: a2 });
       await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'requires DEFAULT_ADMIN');
+    });
+    it('should allow changing constraints', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      {
+        const view = await pool.getInfo();
+        assert.equal(view.constraints.maxValue, toWei('1095000'));
+      }
+      await pool.setConstraints({ ...defaultConstraints(), maxValue: toWei('75000') });
+      {
+        const view = await pool.getInfo();
+        assert.equal(view.constraints.maxValue, toWei('75000'));
+      }
+    });
+    it('should withdraw the pool on shutdown', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      await token.mint(toWei('100000'));
+      await token.transfer(pool.address, toWei('100000'));
+      assert.equal(await token.balanceOf(a1), 0);
+      await pool.shutdown();
+      assert.equal(await token.balanceOf(a1), toWei('100000'));
+      assert.equal(await token.balanceOf(pool.address), 0);
     });
   });
 
