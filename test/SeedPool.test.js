@@ -101,7 +101,7 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
   });
 
   describe('grants', () => {
-    it.only('should allow basic infusion allowance grants', async () => {
+    it('should allow basic infusion allowance grants', async () => {
       const { token, faucet, pool, nft } = await factory();
       const tokenId = '1';
       await token.mint(toWei('100000'));
@@ -158,6 +158,18 @@ contract.only('NFTTokenFaucetV3', (accounts) => {
         nft.address, tokenId, toWei('1000'), 50,
         { from: a2 });
       await truffleAssert.fails(task, truffleAssert.ErrorType.REVERT, 'not token owner');
+    });
+    it('should NOT revert if not token owner and constraint flag is false', async () => {
+      const { token, faucet, pool, nft } = await factory();
+      const tokenId = '1';
+      await token.mint(toWei('100000'));
+      await nft.mint(tokenId); // minted by a1
+      await token.transfer(pool.address, toWei('100000'));
+      await pool.setAllowances([{ seeder: a2, amount: toWei('50000') }]);
+      await pool.setConstraints({ ...defaultConstraints(), requireOwnedNft: false });
+      await pool.seed(
+        nft.address, tokenId, toWei('1000'), 50,
+        { from: a2 }); // no revert
     });
     it('should revert if daily rate too low', async () => {
       const { token, faucet, pool, nft } = await factory();

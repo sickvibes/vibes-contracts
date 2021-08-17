@@ -118,6 +118,8 @@ contract SeedPool is AccessControlEnumerable, Pausable {
       dailyRate: dailyRate,
       totalDays: totalDays
     }));
+
+    // no seed event, just check the downstream wellspring for info
   }
 
   // transfer allowance from msg.sender to another address
@@ -126,7 +128,6 @@ contract SeedPool is AccessControlEnumerable, Pausable {
     require(amount >= constraints.minGrant, "grant amount too low");
 
     _seeders.add(seeder);
-
     allowances[msg.sender] -= amount; // reverts on overflow
     allowances[seeder] += amount;
 
@@ -149,7 +150,6 @@ contract SeedPool is AccessControlEnumerable, Pausable {
       uint256 amount = allowances_[i].amount;
 
       _seeders.add(seeder);
-
       allowances[seeder] = amount;
 
       emit AllowanceSet(msg.sender, seeder, amount);
